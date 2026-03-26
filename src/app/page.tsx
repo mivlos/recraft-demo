@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 const EXAMPLE_PROMPTS = [
   "A futuristic Tokyo street at sunset with neon signs",
@@ -26,6 +26,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [generatedPrompt, setGeneratedPrompt] = useState("");
+  const [lightboxIndex, setLightboxIndex] = useState(-1);
 
   const generate = useCallback(
     async (text?: string) => {
@@ -57,6 +58,47 @@ export default function Home() {
     },
     [prompt]
   );
+
+  const downloadImage = useCallback(
+    async (url: string, style: string, type: string) => {
+      const slug = generatedPrompt
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40);
+      const ext = type === "vector" ? "svg" : "webp";
+      const filename = `recraft-${style}-${slug}.${ext}`;
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(objectUrl);
+      } catch (err) {
+        console.error("Download failed:", err);
+      }
+    },
+    [generatedPrompt]
+  );
+
+  // Keyboard navigation for lightbox
+  useEffect(() => {
+    if (lightboxIndex === -1) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxIndex(-1);
+      if (e.key === "ArrowLeft")
+        setLightboxIndex((i) => Math.max(0, i - 1));
+      if (e.key === "ArrowRight")
+        setLightboxIndex((i) => Math.min(directions.length - 1, i + 1));
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxIndex, directions.length]);
+
+  const lightboxDir = lightboxIndex >= 0 ? directions[lightboxIndex] : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white">
@@ -206,7 +248,11 @@ export default function Home() {
                 key={i}
                 className="group relative rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-violet-500/30 transition-all"
               >
-                <div className="aspect-square relative">
+                <div
+                  className="aspect-square relative"
+                  onClick={() => dir.url && setLightboxIndex(i)}
+                  style={{ cursor: dir.url ? "pointer" : "default" }}
+                >
                   {dir.url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -228,32 +274,32 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Overlay */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-12 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium">{dir.label}</p>
-                      <p className="text-xs text-white/50">
-                        {dir.type === "vector" ? "SVG" : "WebP"} •{" "}
-                        {dir.style}
-                      </p>
-                    </div>
-                    {dir.url && (
-                      <a
-                        href={dir.url}
-                        download
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                        title="Download"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </a>
-                    )}
+                {/* Hover overlay: label + style info */}
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 pt-12 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div>
+                    <p className="text-sm font-medium">{dir.label}</p>
+                    <p className="text-xs text-white/50">
+                      {dir.type === "vector" ? "SVG" : "WebP"} •{" "}
+                      {dir.style}
+                    </p>
                   </div>
                 </div>
+
+                {/* Download button: bottom-right, visible on hover */}
+                {dir.url && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadImage(dir.url!, dir.style, dir.type);
+                    }}
+                    className="absolute bottom-3 right-3 p-2 rounded-lg bg-black/60 hover:bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    title="Download"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </button>
+                )}
 
                 {/* Type badge */}
                 <div className="absolute top-3 left-3">
@@ -324,6 +370,117 @@ export default function Home() {
           </span>
         </div>
       </footer>
+
+      {/* Lightbox Modal */}
+      {lightboxDir && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setLightboxIndex(-1)}
+          style={{ animation: "fadeIn 0.2s ease-out" }}
+        >
+          {/* Content — stop clicks from closing */}
+          <div
+            className="relative flex flex-col items-center gap-4 px-16"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close button */}
+            <button
+              onClick={() => setLightboxIndex(-1)}
+              className="absolute -top-2 -right-2 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors z-10"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Image */}
+            {lightboxDir.url && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={lightboxDir.url}
+                alt={lightboxDir.label}
+                className="max-w-[90vw] max-h-[75vh] object-contain rounded-xl shadow-2xl"
+              />
+            )}
+
+            {/* Label row */}
+            <div className="flex items-center gap-4">
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                  lightboxDir.type === "vector"
+                    ? "bg-fuchsia-500/30 text-fuchsia-200 border border-fuchsia-500/30"
+                    : "bg-violet-500/30 text-violet-200 border border-violet-500/30"
+                }`}
+              >
+                {lightboxDir.type === "vector" ? "SVG" : "RASTER"}
+              </span>
+              <p className="text-sm font-medium">{lightboxDir.label}</p>
+              <p className="text-xs text-white/40">{lightboxDir.style}</p>
+
+              {/* Download button in lightbox */}
+              {lightboxDir.url && (
+                <button
+                  onClick={() =>
+                    downloadImage(lightboxDir.url!, lightboxDir.style, lightboxDir.type)
+                  }
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors text-xs font-medium"
+                  title="Download"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Download
+                </button>
+              )}
+            </div>
+
+            {/* Navigation counter */}
+            <p className="text-xs text-white/30">
+              {lightboxIndex + 1} / {directions.length}
+            </p>
+          </div>
+
+          {/* Left arrow */}
+          {lightboxIndex > 0 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => i - 1);
+              }}
+              className="absolute left-4 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              aria-label="Previous"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Right arrow */}
+          {lightboxIndex < directions.length - 1 && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxIndex((i) => i + 1);
+              }}
+              className="absolute right-4 p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              aria-label="Next"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }

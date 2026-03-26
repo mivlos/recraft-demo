@@ -2,14 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 
 const FAL_KEY = process.env.FAL_KEY;
 
-const STYLES = [
-  { id: "realistic_image", label: "Photorealistic" },
-  { id: "digital_illustration", label: "Digital Illustration" },
-  { id: "vector_illustration", label: "Vector Art" },
-  { id: "icon", label: "Icon Design" },
-  { id: "any", label: "AI's Choice" },
-];
-
 // 8 visual directions: 5 raster styles + 3 vector variants
 const DIRECTIONS = [
   { model: "fal-ai/recraft/v4/text-to-image", style: "realistic_image", label: "Photorealistic", type: "raster" },
@@ -28,7 +20,10 @@ async function generateWithFal(
   style: string
 ): Promise<{ url: string; type: string } | null> {
   try {
-    const response = await fetch(`https://queue.fal.run/${model}`, {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+
+    const response = await fetch(`https://fal.run/${model}`, {
       method: "POST",
       headers: {
         Authorization: `Key ${FAL_KEY}`,
@@ -39,7 +34,10 @@ async function generateWithFal(
         style,
         image_size: "square_hd",
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -48,38 +46,14 @@ async function generateWithFal(
     }
 
     const data = await response.json();
+    const imageUrl = data.images?.[0]?.url || data.image?.url;
 
-    // Queue-based: poll for result using the URLs returned by fal.ai
-    if (data.request_id) {
-      const statusUrl = data.status_url || `https://queue.fal.run/fal-ai/recraft/requests/${data.request_id}/status`;
-      const responseUrl = data.response_url || `https://queue.fal.run/fal-ai/recraft/requests/${data.request_id}`;
-      let attempts = 0;
-      while (attempts < 60) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const statusRes = await fetch(statusUrl, {
-          headers: { Authorization: `Key ${FAL_KEY}` },
-        });
-        const status = await statusRes.json();
-        if (status.status === "COMPLETED") {
-          const resultRes = await fetch(responseUrl, {
-            headers: { Authorization: `Key ${FAL_KEY}` },
-          });
-          const result = await resultRes.json();
-          const imageUrl = result.images?.[0]?.url || result.image?.url;
-          return imageUrl ? { url: imageUrl, type: model.includes("vector") ? "svg" : "webp" } : null;
-        }
-        if (status.status === "FAILED") {
-          console.error(`fal.ai generation failed for ${model}/${style}`);
-          return null;
-        }
-        attempts++;
-      }
+    if (!imageUrl) {
+      console.error(`fal.ai no image URL for ${model}/${style}:`, JSON.stringify(data));
       return null;
     }
 
-    // Synchronous response
-    const imageUrl = data.images?.[0]?.url || data.image?.url;
-    return imageUrl ? { url: imageUrl, type: model.includes("vector") ? "svg" : "webp" } : null;
+    return { url: imageUrl, type: model.includes("vector") ? "svg" : "webp" };
   } catch (err) {
     console.error(`Generation error for ${model}/${style}:`, err);
     return null;
@@ -129,6 +103,7 @@ export async function POST(request: NextRequest) {
           type: DIRECTIONS[i].type,
           style: DIRECTIONS[i].style,
           url: null,
+          outputType: null,
           placeholder: true,
         }
   );
