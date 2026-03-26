@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 const FAL_KEY = process.env.FAL_KEY;
 
-// 8 visual directions: 5 raster styles + 3 vector variants
+// 8 visual directions: use V3 for raster (more styles), V4 for vector
 const DIRECTIONS = [
-  { model: "fal-ai/recraft/v4/text-to-image", style: "realistic_image", label: "Photorealistic", type: "raster" },
-  { model: "fal-ai/recraft/v4/text-to-image", style: "digital_illustration", label: "Digital Illustration", type: "raster" },
-  { model: "fal-ai/recraft/v4/text-to-image", style: "any", label: "AI Creative", type: "raster" },
-  { model: "fal-ai/recraft/v4/text-to-image", style: "icon", label: "Icon Design", type: "raster" },
+  { model: "fal-ai/recraft-v3", style: "realistic_image", label: "Photorealistic", type: "raster" },
+  { model: "fal-ai/recraft-v3", style: "digital_illustration", label: "Digital Illustration", type: "raster" },
+  { model: "fal-ai/recraft-v3", style: "any", label: "AI Creative (V3)", type: "raster" },
+  { model: "fal-ai/recraft/v4/text-to-image", style: "any", label: "AI Creative (V4)", type: "raster" },
   { model: "fal-ai/recraft/v4/text-to-vector", style: "vector_illustration", label: "Vector Art", type: "vector" },
   { model: "fal-ai/recraft/v4/text-to-vector", style: "any", label: "Vector Creative", type: "vector" },
   { model: "fal-ai/recraft/v4/text-to-vector", style: "icon", label: "Vector Icon", type: "vector" },
