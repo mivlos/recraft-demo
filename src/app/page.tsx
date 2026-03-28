@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 const EXAMPLE_PROMPTS = [
   "A futuristic Tokyo street at sunset with neon signs",
@@ -10,6 +10,85 @@ const EXAMPLE_PROMPTS = [
   "Product shot of premium headphones on marble",
   "Retro travel poster for Mars tourism",
 ];
+
+const SHOWCASE_EXAMPLES = [
+  { prompt: "A futuristic Tokyo street at sunset with neon signs reflecting on wet pavement", image: "" },
+  { prompt: "Minimalist logo for a sustainable coffee brand using earth tones", image: "" },
+  { prompt: "Whimsical forest creatures having an elaborate Victorian tea party", image: "" },
+  { prompt: "Abstract geometric pattern inspired by Bauhaus masters in bold primary colours", image: "" },
+];
+
+function TypewriterText({ text, speed = 40 }: { text: string; speed?: number }) {
+  const [displayed, setDisplayed] = useState("");
+  const indexRef = useRef(0);
+
+  useEffect(() => {
+    setDisplayed("");
+    indexRef.current = 0;
+    const interval = setInterval(() => {
+      if (indexRef.current < text.length) {
+        setDisplayed(text.slice(0, indexRef.current + 1));
+        indexRef.current++;
+      } else {
+        clearInterval(interval);
+      }
+    }, speed);
+    return () => clearInterval(interval);
+  }, [text, speed]);
+
+  return (
+    <span className="text-white/50 text-xs leading-relaxed">
+      {displayed}
+      <span className="animate-pulse text-violet-400">|</span>
+    </span>
+  );
+}
+
+function EmptyStateCarousel() {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex(i => (i + 1) % SHOWCASE_EXAMPLES.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="max-w-2xl mx-auto px-6 pb-8">
+      <div className="relative overflow-hidden rounded-2xl bg-white/5 border border-white/10 h-64 flex items-center justify-center">
+        <div
+          className="absolute inset-0 flex transition-transform duration-700 ease-in-out"
+          style={{ transform: `translateX(-${index * 100}%)` }}
+        >
+          {SHOWCASE_EXAMPLES.map((ex, i) => (
+            <div key={i} className="min-w-full h-full flex flex-col items-center justify-center p-8">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/20 flex items-center justify-center mb-4">
+                <span className="text-2xl">
+                  {["🌃", "☕", "🍵", "🎨"][i]}
+                </span>
+              </div>
+              <p className="text-sm text-white/40 text-center italic max-w-md">
+                &ldquo;{ex.prompt}&rdquo;
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="absolute bottom-4 flex gap-2">
+          {SHOWCASE_EXAMPLES.map((_, i) => (
+            <div
+              key={i}
+              className={`w-2 h-2 rounded-full transition-colors duration-300 ${i === index ? "bg-violet-400" : "bg-white/20"}`}
+            />
+          ))}
+        </div>
+      </div>
+      <p className="text-center text-xs text-white/30 mt-3">
+        Try a prompt above to see 8 visual directions generated instantly
+      </p>
+    </div>
+  );
+}
 
 type Direction = {
   label: string;
@@ -203,7 +282,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* Loading skeleton */}
+      {/* Loading — typewriter prompt cards */}
       {loading && (
         <section className="max-w-7xl mx-auto px-6 pb-12">
           <p className="text-center text-white/40 text-sm mb-6">
@@ -213,9 +292,12 @@ export default function Home() {
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="aspect-square rounded-2xl bg-white/5 border border-white/10 animate-pulse flex items-center justify-center"
+                className="aspect-square rounded-2xl bg-white/5 border border-white/10 flex items-start p-4 overflow-hidden"
               >
-                <div className="w-12 h-12 rounded-full bg-white/5" />
+                <TypewriterText
+                  text={generatedPrompt}
+                  speed={30 + i * 8}
+                />
               </div>
             ))}
           </div>
@@ -258,7 +340,7 @@ export default function Home() {
                     <img
                       src={dir.url}
                       alt={`${dir.label} interpretation`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover animate-crossfadeIn"
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center gap-3 p-4">
@@ -318,6 +400,9 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {/* Empty state carousel */}
+      {directions.length === 0 && !loading && <EmptyStateCarousel />}
 
       {/* Features */}
       {directions.length === 0 && !loading && (
